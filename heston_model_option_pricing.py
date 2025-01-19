@@ -5,24 +5,14 @@ from scipy.integrate import quad
 def heston_characteristic_function(u, S0, K, T, r, q, kappa, theta, sigma_v, rho, v0):
     """
     Computes the characteristic function of the Heston model.
-    :param u: Complex argument for the Fourier transform.
-    :param S0: Current stock price.
-    :param K: Strike price.
-    :param T: Time to maturity (in years).
-    :param r: Risk-free rate (annualized).
-    :param q: Dividend yield (annualized).
-    :param kappa: Mean reversion speed of variance.
-    :param theta: Long-term variance.
-    :param sigma_v: Volatility of variance.
-    :param rho: Correlation between stock price and variance.
-    :param v0: Initial variance.
-    :return: Value of the characteristic function.
     """
     i = 1j  # Imaginary unit
     x = np.log(S0 / K)  # Log of the stock-to-strike ratio
     d = np.sqrt((rho * sigma_v * u * i - kappa) ** 2 + (sigma_v ** 2) * (u * i + u ** 2))
     g = (kappa - rho * sigma_v * u * i - d) / (kappa - rho * sigma_v * u * i + d)
-    C = (r - q) * u * i * T + (kappa * theta / sigma_v**2) * ((kappa - rho * sigma_v * u * i - d) * T - 2 * np.log((1 - g * np.exp(-d * T)) / (1 - g)))
+    C = (r - q) * u * i * T + (kappa * theta / sigma_v**2) * (
+        (kappa - rho * sigma_v * u * i - d) * T - 2 * np.log((1 - g * np.exp(-d * T)) / (1 - g))
+    )
     D = ((kappa - rho * sigma_v * u * i - d) / sigma_v**2) * (1 - np.exp(-d * T)) / (1 - g * np.exp(-d * T))
     return np.exp(C + D * v0 + u * i * x)
 
@@ -30,17 +20,6 @@ def heston_characteristic_function(u, S0, K, T, r, q, kappa, theta, sigma_v, rho
 def heston_option_price(S0, K, T, r, q, kappa, theta, sigma_v, rho, v0):
     """
     Computes the price of a European call option using the Heston model.
-    :param S0: Current stock price.
-    :param K: Strike price.
-    :param T: Time to maturity (in years).
-    :param r: Risk-free rate (annualized).
-    :param q: Dividend yield (annualized).
-    :param kappa: Mean reversion speed of variance.
-    :param theta: Long-term variance.
-    :param sigma_v: Volatility of variance.
-    :param rho: Correlation between stock price and variance.
-    :param v0: Initial variance.
-    :return: Option price.
     """
     P1 = 0.5 + (1 / np.pi) * quad(
         lambda u: np.real(heston_characteristic_function(u - 1j, S0, K, T, r, q, kappa, theta, sigma_v, rho, v0) / (u * 1j)),
@@ -50,13 +29,23 @@ def heston_option_price(S0, K, T, r, q, kappa, theta, sigma_v, rho, v0):
         lambda u: np.real(heston_characteristic_function(u, S0, K, T, r, q, kappa, theta, sigma_v, rho, v0) / (u * 1j)),
         0, np.inf
     )[0]
-    return np.exp(-r * T) * (S0 * P1 - K * P2)
+    call_price = np.exp(-r * T) * (S0 * P1 - K * P2)
+    return call_price
+
+# Put option price using put-call parity
+def heston_put_option_price(call_price, S0, K, T, r, q):
+    """
+    Computes the price of a European put option using put-call parity.
+    """
+    discounted_strike = K * np.exp(-r * T)
+    discounted_stock = S0 * np.exp(-q * T)
+    put_price = call_price + discounted_strike - discounted_stock
+    return put_price
 
 # Input parameters with descriptions
 def get_user_inputs():
     """
     Prompts the user to input Heston model parameters with descriptions.
-    :return: Dictionary of user-input parameters.
     """
     print("Please provide the following parameters for the Heston model:")
     S0 = float(input("S0 (Current stock price): "))
@@ -74,12 +63,14 @@ def get_user_inputs():
         "kappa": kappa, "theta": theta, "sigma_v": sigma_v, "rho": rho, "v0": v0
     }
 
-# Main function to compute and display the option price
+# Main function to compute and display the option prices
 def main():
     print("\nWelcome to the Heston Model Option Pricing Tool!")
     params = get_user_inputs()
-    price = heston_option_price(**params)
-    print(f"\nThe computed price of the European call option is: {price:.2f}")
+    call_price = heston_option_price(**params)
+    put_price = heston_put_option_price(call_price, params["S0"], params["K"], params["T"], params["r"], params["q"])
+    print(f"\nThe computed price of the European call option is: {call_price:.2f}")
+    print(f"The computed price of the European put option is: {put_price:.2f}")
 
 if __name__ == "__main__":
     main()
